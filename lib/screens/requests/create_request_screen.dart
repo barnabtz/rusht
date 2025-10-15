@@ -1,393 +1,226 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:rusht/l10n/app_localizations.dart';
-import 'package:rusht/models/product_request_model.dart';
-import 'package:rusht/providers/product_request_provider.dart';
-import 'package:rusht/providers/auth_provider.dart';
-import 'package:rusht/services/cloudinary_service.dart';
-
+import '../../models/booking_model.dart';
+import '../../models/product_model.dart';
+import '../../models/user_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/booking_provider.dart';
+import '../../widgets/booking/booking_card.dart';
 
 class CreateRequestScreen extends StatefulWidget {
-  const CreateRequestScreen({super.key});
+  final ProductModel product;
+
+  const CreateRequestScreen({super.key, required this.product});
 
   @override
   State<CreateRequestScreen> createState() => _CreateRequestScreenState();
 }
 
 class _CreateRequestScreenState extends State<CreateRequestScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _budgetMinController = TextEditingController();
-  final _budgetMaxController = TextEditingController();
-  final _cloudinary = CloudinaryService();
-  
-  String _selectedCategory = 'electronics';
-  DateTime? _neededBy;
-  final List<String> _images = [];
-  bool _isLoading = false;
-  String? _error;
+  DateTime? _startDate;
+  DateTime? _endDate;
 
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _budgetMinController.dispose();
-    _budgetMaxController.dispose();
-    super.dispose();
+  int get _durationInDays {
+    if (_startDate == null || _endDate == null) return 0;
+    return _endDate!.difference(_startDate!).inDays + 1;
   }
 
-  Future<void> _selectDate() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now().add(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-    );
-
-    if (date != null) {
-      setState(() => _neededBy = date);
-    }
-  }
-
-  Future<void> _uploadImage() async {
-    try {
-      setState(() => _isLoading = true);
-      
-      // Use ImagePicker to select an image
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
-
-      if (image != null) {
-        final imageUrl = await _cloudinary.uploadImage(image);
-        if (imageUrl != null && mounted) {
-          setState(() => _images.add(imageUrl));
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_error ?? 'Failed to upload image'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _submitRequest() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final userId = context.read<AuthProvider>().currentUser?.id;
-      if (userId == null) return;
-
-      final request = ProductRequestModel(
-        id: '',  // Will be set by Supabase
-        requesterId: userId,
-        title: _titleController.text,
-        description: _descriptionController.text,
-        category: _selectedCategory,
-        budgetMin: double.parse(_budgetMinController.text),
-        budgetMax: double.parse(_budgetMaxController.text),
-        neededBy: _neededBy!,
-        createdAt: DateTime.now(),
-        images: _images,
-      );
-
-      await context.read<ProductRequestProvider>().createRequest(request);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Request created successfully'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_error ?? 'Failed to create request'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } finally {
-      setState(() => _isLoading = false);
-    }
+  double get _totalPrice {
+    if (_startDate == null || _endDate == null) return 0.0;
+    return widget.product.pricePerDay * _durationInDays;
   }
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    
+    final currentUser = context.watch<AuthProvider>().currentUser;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.createRequest),
+        title: const Text('Create Request'),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_error != null)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Text(
-                            _error!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => setState(() => _error = null),
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                TextFormField(
-                  controller: _titleController,
-                  decoration: InputDecoration(
-                    labelText: l10n.requestTitle,
-                    hintText: l10n.requestTitleHint,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return l10n.requestTitleRequired;
-                    }
-                    return null;
-                  },
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (currentUser != null)
+                BookingCard(
+                  booking: _buildBooking(currentUser),
+                  product: widget.product,
                 ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _descriptionController,
-                  decoration: InputDecoration(
-                    labelText: l10n.requestDescription,
-                    hintText: l10n.requestDescriptionHint,
-                  ),
-                  maxLines: 3,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return l10n.requestDescriptionRequired;
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                DropdownButtonFormField<String>(
-                  value: _selectedCategory,
-                  decoration: InputDecoration(
-                    labelText: l10n.requestCategory,
-                  ),
-                  items: [
-                    'electronics',
-                    'furniture',
-                    'tools',
-                    'sports'
-                  ].map((category) => DropdownMenuItem(
-                        value: category,
-                        child: Text(
-                          category == 'electronics' ? l10n.categoryElectronics :
-                          category == 'furniture' ? l10n.categoryFurniture :
-                          category == 'tools' ? l10n.categoryTools :
-                          l10n.categorySports
-                        ),
-                      ))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _selectedCategory = value);
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _budgetMinController,
-                        decoration: InputDecoration(
-                          labelText: l10n.requestBudgetMin,
-                          prefixText: '\$',
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return l10n.requestBudgetRequired;
-                          }
-                          if (double.tryParse(value) == null) {
-                            return l10n.requestBudgetInvalid;
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _budgetMaxController,
-                        decoration: InputDecoration(
-                          labelText: l10n.requestBudgetMax,
-                          prefixText: '\$',
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return l10n.requestBudgetRequired;
-                          }
-                          if (double.tryParse(value) == null) {
-                            return l10n.requestBudgetInvalid;
-                          }
-                          final min = double.tryParse(_budgetMinController.text);
-                          final max = double.tryParse(value);
-                          if (min != null && max != null && max <= min) {
-                            return l10n.requestBudgetMaxTooLow;
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                ListTile(
-                  title: Text(
-                    _neededBy == null
-                        ? l10n.requestNeededBy
-                        : l10n.requestNeededByDate.replaceAll(
-                            '{date}',
-                            DateFormat('MMM dd, yyyy').format(_neededBy!),
-                          ),
-                  ),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: _selectDate,
-                ),
-                const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Text(l10n.requestImages),
-                    const Spacer(),
-                    if (_images.length < 3)
-                      TextButton.icon(
-                        onPressed: _isLoading ? null : _uploadImage,
-                        icon: const Icon(Icons.add_photo_alternate),
-                        label: Text(l10n.requestAddImage),
-                      ),
-                  ],
-                ),
-                if (_images.isNotEmpty)
-                  SizedBox(
-                    height: 100,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _images.length,
-                      itemBuilder: (context, index) {
-                        return Stack(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                right: 8,
-                                top: 8,
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  _images[index],
-                                  width: 100,
-                                  height: 100,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              right: 0,
-                              top: 0,
-                              child: IconButton(
-                                icon: const Icon(Icons.remove_circle),
-                                color: Colors.red,
-                                onPressed: () {
-                                  setState(() => _images.removeAt(index));
-                                },
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
+              const SizedBox(height: 16),
+              _buildDatePicker(context),
+              const SizedBox(height: 16),
+              _buildPriceDetails(),
+            ],
           ),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _submitRequest,
-            child: _isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(l10n.submitRequest),
-          ),
+      bottomNavigationBar: _buildBottomAppBar(context, currentUser),
+    );
+  }
+
+  BookingModel _buildBooking(UserModel currentUser) {
+    return BookingModel(
+      id: '', // Temporary ID
+      productId: widget.product.id,
+      renterId: currentUser.id,
+      ownerId: widget.product.ownerId,
+      startDate: _startDate ?? DateTime.now(),
+      endDate: _endDate ?? DateTime.now(),
+      totalPrice: _totalPrice,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  Widget _buildDatePicker(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Select Dates',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _selectDate(context, isStart: true),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Start Date',
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Text(_startDate?.toString().split(' ').first ?? 'Select'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _selectDate(context, isStart: false),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'End Date',
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Text(_endDate?.toString().split(' ').first ?? 'Select'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _selectDate(BuildContext context, {required bool isStart}) async {
+    final now = DateTime.now();
+    final initialDate = isStart ? _startDate : _endDate;
+    final firstDate = isStart ? now : _startDate ?? now;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate ?? now,
+      firstDate: firstDate,
+      lastDate: DateTime(2101),
+    );
+
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          _startDate = picked;
+          if (_endDate != null && _endDate!.isBefore(_startDate!)) {
+            _endDate = null;
+          }
+        } else {
+          _endDate = picked;
+        }
+      });
+    }
+  }
+
+  Widget _buildPriceDetails() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Price Details',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('\$${widget.product.pricePerDay.toStringAsFixed(2)} x $_durationInDays days'),
+                Text('\$${(widget.product.pricePerDay * _durationInDays).toStringAsFixed(2)}'),
+              ],
+            ),
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total Price',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                Text(
+                  '\$${_totalPrice.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomAppBar(BuildContext context, UserModel? currentUser) {
+    return BottomAppBar(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: FilledButton(
+          onPressed: currentUser != null ? () => _submitRequest(currentUser) : null,
+          child: const Text('Send Request'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitRequest(UserModel currentUser) async {
+    if (_startDate == null || _endDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select start and end dates')),
+      );
+      return;
+    }
+
+    try {
+      await context.read<BookingProvider>().createBooking(_buildBooking(currentUser));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Request sent successfully')),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error sending request: ${e.toString()}')),
+        );
+      }
+    }
   }
 }

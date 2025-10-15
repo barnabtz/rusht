@@ -1,10 +1,12 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/booking_model.dart';
-import '../cached_image.dart';
+import '../../models/product_model.dart';
 
 class BookingCard extends StatelessWidget {
   final BookingModel booking;
+  final ProductModel product;
   final VoidCallback? onTap;
   final VoidCallback? onCancel;
   final VoidCallback? onAccept;
@@ -13,6 +15,7 @@ class BookingCard extends StatelessWidget {
   const BookingCard({
     super.key,
     required this.booking,
+    required this.product,
     this.onTap,
     this.onCancel,
     this.onAccept,
@@ -25,6 +28,8 @@ class BookingCard extends StatelessWidget {
         return Colors.orange;
       case BookingStatus.confirmed:
         return Theme.of(context).colorScheme.primary;
+      case BookingStatus.active:
+        return Colors.green;
       case BookingStatus.cancelled:
         return Theme.of(context).colorScheme.error;
       case BookingStatus.completed:
@@ -40,6 +45,8 @@ class BookingCard extends StatelessWidget {
         return 'Pending';
       case BookingStatus.confirmed:
         return 'Confirmed';
+      case BookingStatus.active:
+        return 'Active';
       case BookingStatus.cancelled:
         return 'Cancelled';
       case BookingStatus.completed:
@@ -52,7 +59,6 @@ class BookingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('MMM dd, yyyy');
-    final product = booking.product;
 
     return Card(
       margin: const EdgeInsets.symmetric(
@@ -71,10 +77,13 @@ class BookingCard extends StatelessWidget {
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(12),
                   ),
-                  child: CachedImage(
-                    imageUrl: product.images.first,
+                  child: CachedNetworkImage(
+                    imageUrl: product.images.isNotEmpty ? product.images.first : '',
                     width: 100,
                     height: 100,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                    errorWidget: (context, url, error) => const Icon(Icons.error),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -126,7 +135,7 @@ class BookingCard extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(context).withOpacity(0.1),
+                      color: _getStatusColor(context).withAlpha(25),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
@@ -141,7 +150,7 @@ class BookingCard extends StatelessWidget {
                                       ? Icons.cancel
                                       : booking.status == BookingStatus.completed
                                           ? Icons.task_alt
-                                          : Icons.close_circle,
+                                          : Icons.cancel,
                           size: 16,
                           color: _getStatusColor(context),
                         ),

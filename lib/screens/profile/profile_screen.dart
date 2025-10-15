@@ -6,7 +6,7 @@ import 'package:rusht/providers/auth_provider.dart';
 import 'package:rusht/services/cloudinary_service.dart';
 import 'package:rusht/services/location_service.dart';
 import 'package:rusht/widgets/custom_text_field.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:rusht/providers/product_provider.dart';
 import 'package:rusht/widgets/user_products_list.dart';
 import 'package:rusht/widgets/add_product_modal.dart';

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:timeago/timeago.dart' as timeago;
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:rusht/models/message_model.dart';
 import 'package:rusht/providers/message_provider.dart';
 import 'package:rusht/providers/auth_provider.dart';

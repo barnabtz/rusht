@@ -16,6 +16,9 @@ class MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -30,8 +33,8 @@ class MessageBubble extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: isMe
-              ? Theme.of(context).colorScheme.primaryContainer
-              : Theme.of(context).colorScheme.surfaceVariant,
+              ? colors.primaryContainer
+              : colors.surfaceContainerHighest,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -47,8 +50,8 @@ class MessageBubble extends StatelessWidget {
               message.content,
               style: TextStyle(
                 color: isMe
-                    ? Theme.of(context).colorScheme.onPrimaryContainer
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ? colors.onPrimaryContainer
+                    : colors.onSurface,
               ),
             ),
             const SizedBox(height: 4),
@@ -57,21 +60,15 @@ class MessageBubble extends StatelessWidget {
               children: [
                 Text(
                   timeago.format(message.createdAt),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  style: textTheme.bodySmall?.copyWith(
                         color: isMe
-                            ? Theme.of(context)
-                                .colorScheme
-                                .onPrimaryContainer
-                                .withOpacity(0.7)
-                            : Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant
-                                .withOpacity(0.7),
+                            ? colors.onPrimaryContainer.withAlpha(179)
+                            : colors.onSurface.withAlpha(179),
                       ),
                 ),
                 if (isMe) ...[
                   const SizedBox(width: 4),
-                  if (message.isPending)
+                  if (message.status == 'pending')
                     const SizedBox(
                       width: 12,
                       height: 12,
@@ -85,17 +82,14 @@ class MessageBubble extends StatelessWidget {
                       child: Icon(
                         Icons.error_outline,
                         size: 14,
-                        color: Theme.of(context).colorScheme.error,
+                        color: colors.error,
                       ),
                     )
                   else
                     Icon(
                       Icons.check,
                       size: 14,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onPrimaryContainer
-                          .withOpacity(0.7),
+                      color: colors.onPrimaryContainer.withAlpha(179),
                     ),
                 ],
               ],

@@ -6,7 +6,6 @@ import '../../providers/product_request_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/error_view.dart';
 import '../../widgets/loading_view.dart';
-import 'create_request_screen.dart';
 
 class ProductRequestScreen extends StatefulWidget {
   const ProductRequestScreen({super.key});
@@ -179,24 +178,164 @@ class _ProductRequestScreenState extends State<ProductRequestScreen> {
           }
 
           return FloatingActionButton.extended(
-            onPressed: () async {
-              final created = await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const CreateRequestScreen(),
-                ),
-              );
-
-              if (created == true && mounted) {
-                _loadData();
-              }
-            },
+            onPressed: () => _showCreateRequestDialog(context),
             icon: const Icon(Icons.add),
             label: const Text('New Request'),
           );
         },
       ),
     );
+  }
+
+  void _showCreateRequestDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const _CreateRequestDialog(),
+    ).then((created) {
+      if (created == true) {
+        _loadData();
+      }
+    });
+  }
+}
+
+class _CreateRequestDialog extends StatefulWidget {
+  const _CreateRequestDialog();
+
+  @override
+  State<_CreateRequestDialog> createState() => _CreateRequestDialogState();
+}
+
+class _CreateRequestDialogState extends State<_CreateRequestDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _budgetMinController = TextEditingController();
+  final _budgetMaxController = TextEditingController();
+  String? _selectedCategory;
+  DateTime? _neededBy;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Create New Request'),
+      content: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(labelText: 'Title'),
+                validator: (value) =>
+                    value!.isEmpty ? 'Please enter a title' : null,
+              ),
+              TextFormField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(labelText: 'Description'),
+                validator: (value) =>
+                    value!.isEmpty ? 'Please enter a description' : null,
+              ),
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                decoration: const InputDecoration(labelText: 'Category'),
+                items: ['Electronics', 'Furniture', 'Tools', 'Sports']
+                    .map((category) => DropdownMenuItem(
+                          value: category,
+                          child: Text(category),
+                        ))
+                    .toList(),
+                onChanged: (value) => setState(() => _selectedCategory = value),
+                validator: (value) =>
+                    value == null ? 'Please select a category' : null,
+              ),
+              TextFormField(
+                controller: _budgetMinController,
+                decoration: const InputDecoration(labelText: 'Minimum Budget'),
+                keyboardType: TextInputType.number,
+                validator: (value) =>
+                    value!.isEmpty ? 'Please enter a minimum budget' : null,
+              ),
+              TextFormField(
+                controller: _budgetMaxController,
+                decoration: const InputDecoration(labelText: 'Maximum Budget'),
+                keyboardType: TextInputType.number,
+                validator: (value) =>
+                    value!.isEmpty ? 'Please enter a maximum budget' : null,
+              ),
+              ListTile(
+                title: Text(
+                  'Needed By: ${_neededBy != null ? DateFormat('MMM dd, yyyy').format(_neededBy!) : 'Not set'}',
+                ),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime(2101),
+                  );
+                  if (picked != null) {
+                    setState(() => _neededBy = picked);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (_formKey.currentState!.validate()) {
+              if (_neededBy == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please select a date')),
+                );
+                return;
+              }
+              _createRequest();
+            }
+          },
+          child: const Text('Create'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _createRequest() async {
+    final userId = context.read<AuthProvider>().currentUser?.id;
+    if (userId == null) return;
+
+    final request = ProductRequestModel(
+      id: '', // The server will generate the ID
+      requesterId: userId,
+      title: _titleController.text,
+      description: _descriptionController.text,
+      category: _selectedCategory!,
+      budgetMin: double.parse(_budgetMinController.text),
+      budgetMax: double.parse(_budgetMaxController.text),
+      neededBy: _neededBy!,
+      createdAt: DateTime.now(),
+    );
+
+    try {
+      await context.read<ProductRequestProvider>().createRequest(request);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error creating request: $e')),
+        );
+      }
+    }
   }
 }
 
